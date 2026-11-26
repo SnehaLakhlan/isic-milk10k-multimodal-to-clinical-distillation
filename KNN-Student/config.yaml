@@ -1,0 +1,73 @@
+# ============================================================
+#  MILK10k student (clinical image + metadata only)
+#  Check the paths below, then run:  python check.py
+# ============================================================
+
+# The trained teacher's run folder (must contain fold0..fold4/best.pt, folds.csv, meta_encoder.json).
+# Only read, never written to.
+teacher_work_dir: /home/m24ma2010/Project_ML/Fusion-Teacher/runs/teacher_convnext
+
+data:   # same paths as in the teacher's config
+  train_meta_csv: /home/m24ma2010/MILK10k/MILK10k_Training_Metadata.csv
+  train_gt_csv:   /home/m24ma2010/MILK10k/MILK10k_Training_GroundTruth.csv
+  train_img_dir:  /home/m24ma2010/MILK10k/MILK10k_Training_Input
+  test_meta_csv:  /home/m24ma2010/MILK10k/MILK10k_Test_Metadata.csv
+  test_img_dir:   /home/m24ma2010/MILK10k/MILK10k_Test_Input
+  test_gt_csv:    null          # leave null for the hidden benchmark
+
+  # Column names are auto-detected. Only set one if check.py says it can't find it.
+  columns:
+    lesion: null
+    image: null
+    image_type: null
+    age: null
+    sex: null
+    site: null
+    skin_tone: null
+
+work_dir: runs/student_knn        # everything is saved here
+
+model:   # MUST be identical to the teacher's config (the student is built from the teacher's weights)
+  backbone: convnext_base.fb_in22k_ft_in1k_384
+  pretrained: true       # not used by the student: its weights always come from the teacher checkpoint
+  fusion_dim: 512
+  meta_hidden: [64, 128]
+  meta_dropout: 0.2
+  head_dropout: 0.3
+  use_monet: true
+
+distill:
+  ce_weight: 1.0          # cross-entropy on the true labels
+  kd_weight: 1.0          # match the teacher's class scores (logit distillation)
+  kd_temperature: 3.0
+  feat_weight: 1.0        # match the teacher's fused feature h (cosine distance)
+
+train:
+  folds: 5                # MUST equal the teacher's (the teacher's folds.csv is re-used)
+  seed: 42                # same as the teacher
+  img_size: 384           # MUST equal the teacher's
+  epochs: 15
+  batch_size: 16
+  lr_backbone: 5.0e-5     # half of the teacher's: the student starts from the trained teacher weights
+  lr_head: 5.0e-4
+  weight_decay: 0.05
+  warmup_epochs: 1
+  label_smoothing: 0.05   # same as the teacher
+  class_weight: sqrt      # same as the teacher: 1/sqrt(count)
+  ema_decay: 0.998
+  grad_clip: 1.0
+  amp: bf16               # bf16 | none
+  num_workers: 8
+  tta: true               # flip TTA for the final OOF / case bank / test predictions
+  checkpoint: last        # last = weights after the final epoch (no validation labels used at all)
+                          # val_loss = epoch with the lowest validation loss (like early stopping)
+
+knn:                      # the case-based classifier (final decision of the student)
+  k: 20                   # number of similar past cases that vote
+  temperature: 0.07       # smaller = the closest cases dominate the vote
+  alpha: 0.0              # 0 = kNN only | 1 = nearest class mean only | in between = blend of the two
+  ncm_temperature: 0.1    # only used when alpha > 0
+                          # sweep these four over the saved banks with:  python sweep.py
+
+posthoc:
+  tau: 0.25               # same logit adjustment as the teacher: logits - tau * log(class frequency), top-1

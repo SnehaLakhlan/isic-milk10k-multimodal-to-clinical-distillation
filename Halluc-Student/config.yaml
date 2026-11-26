@@ -1,0 +1,74 @@
+# ============================================================
+#  MILK10k camera-only student: fine-tuned encoder + hallucinator
+#  Check the paths below, then run:  python check.py
+# ============================================================
+
+# The trained teacher's run folder (fold0..4/best.pt, folds.csv, meta_encoder.json). Only read.
+teacher_work_dir: /home/m24ma2010/Project_ML/Fusion-Teacher/runs/teacher_convnext
+
+data:   # same paths as in the teacher's config
+  train_meta_csv: /home/m24ma2010/MILK10k/MILK10k_Training_Metadata.csv
+  train_gt_csv:   /home/m24ma2010/MILK10k/MILK10k_Training_GroundTruth.csv
+  train_img_dir:  /home/m24ma2010/MILK10k/MILK10k_Training_Input
+  test_meta_csv:  /home/m24ma2010/MILK10k/MILK10k_Test_Metadata.csv
+  test_img_dir:   /home/m24ma2010/MILK10k/MILK10k_Test_Input
+  test_gt_csv:    null          # leave null for the hidden benchmark
+
+  # Column names are auto-detected. Only set one if check.py says it can't find it.
+  columns:
+    lesion: null
+    image: null
+    image_type: null
+    age: null
+    sex: null
+    site: null
+    skin_tone: null
+
+work_dir: runs/halluc             # everything is saved here (--work_dir overrides, for variants)
+
+model:   # MUST be identical to the teacher's config
+  backbone: convnext_base.fb_in22k_ft_in1k_384
+  pretrained: false      # never used: the weights always come from the teacher checkpoint
+  fusion_dim: 512
+  meta_hidden: [64, 128]
+  meta_dropout: 0.2
+  head_dropout: 0.3
+  use_monet: true
+
+hallucinator:             # fills the slot where the teacher's fusion expects its dermoscopic token
+  kind: codebook          # codebook = fixed K-means dictionary + learned coefficients (the classical part)
+                          # mlp      = predict all 512 dimensions directly, no dictionary
+                          # none     = no prediction; the teacher's constant vector (the plain student)
+  n_codes: 32             # size of the dictionary
+  hidden: 512             # width of the coefficient predictor
+  dropout: 0.1
+
+distill:                  # set any weight to 0 for an ablation (--halluc_weight 0 etc.)
+  ce_weight: 1.0          # cross-entropy on the true labels
+  kd_weight: 1.0          # match the teacher's class scores
+  kd_temperature: 3.0
+  feat_weight: 1.0        # match the teacher's fused feature h
+  halluc_weight: 1.0      # match the teacher's dermoscopic token  <- the new signal
+
+train:
+  folds: 5                # MUST equal the teacher's (the teacher's folds.csv is re-used)
+  seed: 42                # same as the teacher
+  img_size: 384           # MUST equal the teacher's
+  epochs: 15
+  batch_size: 16
+  lr_backbone: 5.0e-5     # half the teacher's: the student starts from trained weights
+  lr_head: 5.0e-4         # the hallucinator is trained at this rate too
+  weight_decay: 0.05
+  warmup_epochs: 1
+  label_smoothing: 0.05   # same as the teacher
+  class_weight: sqrt      # same as the teacher: 1/sqrt(count)
+  ema_decay: 0.998
+  grad_clip: 1.0
+  amp: bf16               # bf16 | none
+  num_workers: 8
+  tta: true               # flip TTA for the final OOF and test predictions
+  checkpoint: last        # last = weights after the final epoch (no validation label is used)
+                          # val_loss = epoch with the lowest validation loss (early stopping)
+
+posthoc:
+  tau: 0.25               # same as the teacher: logits - tau * log(class frequency), then top-1

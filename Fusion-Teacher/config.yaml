@@ -1,0 +1,52 @@
+# ============================================================
+#  MILK10k teacher (clinical + dermoscopic + metadata)
+#  Edit the paths below, then run:  python check.py
+# ============================================================
+
+data:
+  train_meta_csv: /home/m24ma2010/MILK10k/MILK10k_Training_Metadata.csv
+  train_gt_csv:   /home/m24ma2010/MILK10k/MILK10k_Training_GroundTruth.csv
+  train_img_dir:  /home/m24ma2010/MILK10k/MILK10k_Training_Input
+  test_meta_csv:  /home/m24ma2010/MILK10k/MILK10k_Test_Metadata.csv
+  test_img_dir:   /home/m24ma2010/MILK10k/MILK10k_Test_Input
+  test_gt_csv:    null          # leave null for the hidden benchmark
+
+  # Column names are auto-detected. Only set one if check.py says it can't find it.
+  columns:
+    lesion: null       # e.g. lesion_id
+    image: null        # e.g. isic_id  (must match the image file names)
+    image_type: null   # e.g. image_type ("clinical: close-up" / "dermoscopic")
+    age: null          # e.g. age_approx
+    sex: null
+    site: null
+    skin_tone: null
+
+work_dir: runs/teacher_convnext   # everything is saved here
+
+model:
+  backbone: convnext_base.fb_in22k_ft_in1k_384   # same ConvNeXt for clinical and dermoscopic (separate weights)
+  pretrained: true
+  fusion_dim: 512        # size of fused feature h
+  meta_hidden: [64, 128] # metadata MLP
+  meta_dropout: 0.2
+  head_dropout: 0.3
+  use_monet: true        # use the MONET concept scores from the metadata CSV
+
+train:
+  folds: 5
+  seed: 42
+  img_size: 384
+  epochs: 30
+  batch_size: 16
+  lr_backbone: 1.0e-4
+  lr_head: 1.0e-3
+  weight_decay: 0.05
+  warmup_epochs: 2
+  label_smoothing: 0.05
+  class_weight: sqrt     # sqrt = 1/sqrt(count) (decided) | inverse | none
+  derm_dropout: 0.2      # drop the dermoscopic image 20% of the time
+  ema_decay: 0.998
+  grad_clip: 1.0
+  amp: bf16              # bf16 | none
+  num_workers: 8
+  tta: true              # flip TTA for final OOF and test predictions

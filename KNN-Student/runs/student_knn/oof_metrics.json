@@ -1,0 +1,66 @@
+{
+ "teacher (clinical + dermoscopic) | tau=0.0": {
+  "macro_f1": 0.5780270886077132,
+  "balanced_acc": 0.5597487315744248,
+  "accuracy": 0.7927480916030535,
+  "auc_macro": 0.9128536598231296,
+  "fold_macro_f1_mean": 0.577028183394783,
+  "fold_macro_f1_std": 0.0026538869793039255
+ },
+ "teacher (clinical + dermoscopic) | tau=0.25": {
+  "macro_f1": 0.571398987538151,
+  "balanced_acc": 0.589726829556674,
+  "accuracy": 0.7814885496183206,
+  "auc_macro": 0.9044047445091447,
+  "fold_macro_f1_mean": 0.5697406573890438,
+  "fold_macro_f1_std": 0.008086482826731895
+ },
+ "teacher, dermoscopy hidden | tau=0.0": {
+  "macro_f1": 0.4814308096449393,
+  "balanced_acc": 0.46144150007808915,
+  "accuracy": 0.7221374045801526,
+  "auc_macro": 0.8632159150074618,
+  "fold_macro_f1_mean": 0.47895377374906306,
+  "fold_macro_f1_std": 0.028487638326888318
+ },
+ "teacher, dermoscopy hidden | tau=0.25": {
+  "macro_f1": 0.4809848540622705,
+  "balanced_acc": 0.4977929793323533,
+  "accuracy": 0.7034351145038168,
+  "auc_macro": 0.853449301819417,
+  "fold_macro_f1_mean": 0.47870096417426666,
+  "fold_macro_f1_std": 0.028073064394552105
+ },
+ "student, head (without kNN) | tau=0.0": {
+  "macro_f1": 0.4948252055181228,
+  "balanced_acc": 0.47393883605403,
+  "accuracy": 0.7366412213740458,
+  "auc_macro": 0.8780746385893992,
+  "fold_macro_f1_mean": 0.4916183268302589,
+  "fold_macro_f1_std": 0.02476928838621342
+ },
+ "student, head (without kNN) | tau=0.25": {
+  "macro_f1": 0.4921025260826808,
+  "balanced_acc": 0.4867194662903735,
+  "accuracy": 0.7286259541984733,
+  "auc_macro": 0.8667552125301065,
+  "fold_macro_f1_mean": 0.4914059999130901,
+  "fold_macro_f1_std": 0.028291069031224296
+ },
+ "student, kNN (final student) | tau=0.0": {
+  "macro_f1": 0.49303321001151396,
+  "balanced_acc": 0.4827979521511238,
+  "accuracy": 0.7278625954198473,
+  "auc_macro": 0.770088141699943,
+  "fold_macro_f1_mean": 0.48891446699741764,
+  "fold_macro_f1_std": 0.02109674883450256
+ },
+ "student, kNN (final student) | tau=0.25": {
+  "macro_f1": 0.48885667770813723,
+  "balanced_acc": 0.4829704113380526,
+  "accuracy": 0.7240458015267176,
+  "auc_macro": 0.7229173672120462,
+  "fold_macro_f1_mean": 0.48521204875436064,
+  "fold_macro_f1_std": 0.01969942316811349
+ }
+}

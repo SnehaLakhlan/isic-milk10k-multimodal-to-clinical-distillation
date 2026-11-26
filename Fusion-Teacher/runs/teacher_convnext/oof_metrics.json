@@ -1,0 +1,10 @@
+{
+ "macro_f1_argmax": 0.5780270886077132,
+ "balanced_acc": 0.5597487315744248,
+ "accuracy": 0.7927480916030535,
+ "dice_at_0.5": 0.5553552841592772,
+ "dice_at_tuned_thr": 0.6102916274795321,
+ "auc_macro": 0.9128536598231296,
+ "dice_cv_tuned_thr (honest)": 0.5861442813205531,
+ "clinical_only_macro_f1_argmax": 0.4814308096449393
+}

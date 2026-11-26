@@ -1,0 +1,26 @@
+# ------------------------------------------------------------
+#  MILK10k project: Fusion-Teacher, KNN-Student, Halluc-Student
+# ------------------------------------------------------------
+*.pt
+*.pth
+*.ckpt
+*.npz
+*.npy
+
+*.zip
+*.tar
+*.tar.gz
+*.bak
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+.vscode/
+.idea/
+.DS_Store
+*.swp

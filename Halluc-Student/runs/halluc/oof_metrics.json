@@ -27,12 +27,12 @@
   "fold_std": 0.027748929880035383
  },
  {
-  "model": "nce_hard [codebook, kd+feat+halluc]",
-  "macro_f1_tau0": 0.4966414452280906,
-  "macro_f1_tau": 0.4901746314078102,
-  "bal_acc_tau": 0.5032703377847008,
-  "auc_tau0": 0.8841482439402825,
-  "fold_mean": 0.49280019259218244,
-  "fold_std": 0.028764335625505757
+  "model": "no_kd [codebook, no distillation]",
+  "macro_f1_tau0": 0.46630698708193524,
+  "macro_f1_tau": 0.4808935723866913,
+  "bal_acc_tau": 0.46946789919277004,
+  "auc_tau0": 0.8096073956986234,
+  "fold_mean": 0.46501773950048697,
+  "fold_std": 0.03158117318577238
  }
 ]

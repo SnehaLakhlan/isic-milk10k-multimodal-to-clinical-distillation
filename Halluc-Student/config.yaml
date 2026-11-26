@@ -1,6 +1,6 @@
 # ============================================================
 #  MILK10k camera-only student: fine-tuned encoder + hallucinator
-#  Check the paths below, then run:  python check.py
+#  Check the paths below, then run:  python train.py
 # ============================================================
 
 # The trained teacher's run folder (fold0..4/best.pt, folds.csv, meta_encoder.json). Only read.
@@ -14,7 +14,7 @@ data:   # same paths as in the teacher's config
   test_img_dir:   /home/m24ma2010/MILK10k/MILK10k_Test_Input
   test_gt_csv:    null          # leave null for the hidden benchmark
 
-  # Column names are auto-detected. Only set one if check.py says it can't find it.
+  # Column names are auto-detected. Only set one if train.py says it can't find it.
   columns:
     lesion: null
     image: null

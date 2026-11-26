@@ -1,6 +1,6 @@
 # ============================================================
 #  MILK10k teacher (clinical + dermoscopic + metadata)
-#  Edit the paths below, then run:  python check.py
+#  Edit the paths below, then run:  python train.py
 # ============================================================
 
 data:
@@ -11,7 +11,7 @@ data:
   test_img_dir:   /home/m24ma2010/MILK10k/MILK10k_Test_Input
   test_gt_csv:    null          # leave null for the hidden benchmark
 
-  # Column names are auto-detected. Only set one if check.py says it can't find it.
+  # Column names are auto-detected. Only set one if train.py says it can't find it.
   columns:
     lesion: null       # e.g. lesion_id
     image: null        # e.g. isic_id  (must match the image file names)

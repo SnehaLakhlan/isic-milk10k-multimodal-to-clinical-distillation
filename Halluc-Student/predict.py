@@ -2,7 +2,7 @@
 post-processing as the teacher (logit adjustment with tau, top-1).
 
     python predict.py
-    python predict.py --runs runs/halluc,runs/no_halluc
+    python predict.py --runs runs/halluc,runs/no_kd
 """
 import argparse
 import os

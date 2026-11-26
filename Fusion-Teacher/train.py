@@ -21,7 +21,7 @@ from model import build_model, param_groups
 
 
 def train_fold(cfg, table, enc, k, work_dir, smoke=None):
-    """smoke = dict(n_train, n_val, steps) for check.py; None for the real run."""
+    """smoke = dict(n_train, n_val, steps) for a quick debug run; None for the real run."""
     tc = cfg["train"]
     fdir = fold_dir(work_dir, k)
     os.makedirs(fdir, exist_ok=True)

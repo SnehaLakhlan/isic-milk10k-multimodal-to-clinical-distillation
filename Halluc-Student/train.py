@@ -3,7 +3,7 @@ same fold, with the hallucinator predicting the teacher's dermoscopic token.
 
     python train.py                       # all folds (finished folds are skipped)
     python train.py --fold 2              # one fold, e.g. folds in parallel on different GPUs
-    python train.py --halluc_weight 0 --work_dir runs/no_halluc     # the ablation
+    python train.py --kd_weight 0 --feat_weight 0 --halluc_weight 0 --work_dir runs/no_kd   # no-distillation control
 """
 import argparse
 import json
@@ -33,7 +33,7 @@ def save_ckpt(path, model, epoch, val_loss, val_f1, enc):
 
 
 def train_fold(cfg, table, enc, k, work_dir, smoke=None):
-    """smoke = dict(n_train, n_val, steps) for check.py; None for the real run."""
+    """smoke = dict(n_train, n_val, steps) for a quick debug run; None for the real run."""
     tc, dc, hc = cfg["train"], cfg["distill"], cfg["hallucinator"]
     fdir = fold_dir(work_dir, k)
     os.makedirs(fdir, exist_ok=True)

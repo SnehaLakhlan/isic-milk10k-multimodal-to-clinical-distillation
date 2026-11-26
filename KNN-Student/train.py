@@ -29,7 +29,7 @@ def save_ckpt(path, model, epoch, val_loss, val_f1, enc):
 
 
 def train_fold(cfg, table, enc, k, work_dir, smoke=None):
-    """smoke = dict(n_train, n_val, steps) for check.py; None for the real run."""
+    """smoke = dict(n_train, n_val, steps) for a quick debug run; None for the real run."""
     tc, dc = cfg["train"], cfg["distill"]
     fdir = fold_dir(work_dir, k)
     os.makedirs(fdir, exist_ok=True)

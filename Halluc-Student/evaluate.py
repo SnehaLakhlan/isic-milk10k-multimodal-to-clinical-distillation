@@ -1,7 +1,7 @@
 """Out-of-fold results, next to the teacher with and without dermoscopy.
 
     python evaluate.py                                   # the run in config.yaml's work_dir
-    python evaluate.py --runs runs/halluc,runs/no_halluc,runs/no_kd    # compare variants
+    python evaluate.py --runs runs/halluc,runs/no_kd    # compare with the no-distillation control
 """
 import argparse
 import json

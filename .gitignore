@@ -6,6 +6,15 @@
 *.ckpt
 *.npz
 *.npy
+*.bin
+*.safetensors
+*.pkl
+
+# Data and Hugging Face staging (hosted on the Hub, never committed)
+MILK10k/
+milk10k/
+hf_upload_staging/
+.cache/huggingface/
 
 *.zip
 *.tar

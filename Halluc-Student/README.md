@@ -1,129 +1,204 @@
-# MILK10k camera-only student: fine-tuned encoder + hallucinator
+# Halluc-Student
 
-The student sees a clinical photo and the metadata, nothing else. Every layer starts from the
-teacher and is then fine-tuned. A **hallucinator** fills the slot where the teacher's fusion
-expects its dermoscopic token, and is trained against the teacher's real one.
+A student model that diagnoses a skin lesion from **only the clinical photo and the patient's
+metadata**. It needs no dermoscopic image. Like `KNN-Student`, it learns from the trained
+`Fusion-Teacher` (knowledge distillation). It adds a **hallucinator**: a small network that
+predicts, from the photo, the dermoscopic feature the teacher would have seen.
+
+The teacher is only used during training. At test time the student works on its own. This is
+the best student in the project.
+
+| | Inputs | Out-of-fold macro-F1 | AUC |
+|---|---|---|---|
+| Fusion-Teacher | clinical + dermoscopic + metadata | 0.578 | 0.913 |
+| Teacher with the dermoscopic image hidden (the starting point) | clinical + metadata | 0.481 | 0.863 |
+| **Halluc-Student (final)** | clinical + metadata | **0.504** | 0.874 |
+| Same student, no distillation (`no_kd`) | clinical + metadata | 0.466 | 0.810 |
+
+Without the teacher, the student ends up below its starting point (0.466). With distillation and
+the hallucinator it reaches 0.504, which closes 23 % of the gap to the teacher with dermoscopy.
+
+## The model
 
 ```
-clinical image ─► ConvNeXt ─► f_clin ─┬──────────────────────────────┐
-                                      │                              │
-metadata ─► MLP ─► m ─────────────────┼─► hallucinator ─► token ─────┤
-                                      │   (K-means codebook + MLP)   │
-                                      └─► FiLM + gated fusion ◄──────┘
-                                                   │
-                                                   ▼
-                                       head ─► logit adjustment ─► diagnosis
+clinical photo ──► ConvNeXt-Base ──► clinical feature ──┬───────────────────────────────┐
+                                                        │                               │
+metadata ────────► small MLP ──────► metadata feature ──┼──► HALLUCINATOR ──► predicted │
+                                                        │    (codebook + MLP)   dermo-  │
+                                                        │                       scopic  │
+                                                        │                       feature │
+                                                        ▼                         │     │
+                                         FiLM + gated fusion ◄────────────────────┘◄────┘
+                                                  │
+                                                  ▼
+                                      fused feature h (512) ──► classification head ──► 11 classes
 ```
 
-**Why the hallucinator is here.** Not to supply knowledge at test time — it cannot, since it is
-computed from inputs the fusion already has. Its job is to be a **training signal**: forcing the
-encoder to predict the teacher's dermoscopic token makes it keep photo detail that a bare class
-label would let it discard. The ablation that matters is therefore the same run with
-`--halluc_weight 0`.
+- **It starts as the teacher with the dermoscopic branch removed.** Every layer is copied from
+  the teacher of the same fold, and the dermoscopic encoder is dropped.
+- **Hallucinator.** In the slot where the teacher's fusion expects the dermoscopic feature, the
+  student puts a *prediction* of it:
+  - **Codebook:** before training, K-means over the teacher's real dermoscopic features (training
+    lesions of that fold only) gives 32 typical "dermoscopic patterns". They are fixed and never
+    trained.
+  - **MLP:** a small network reads the clinical feature and the metadata and decides how to mix
+    those 32 patterns.
+  - **Start:** it outputs the teacher's "no dermoscopy" vector, so at step 0 the student is
+    exactly the teacher with the dermoscopic image hidden.
+- **Why it helps.** At test time the hallucinator cannot add information the photo doesn't
+  contain. Its value is as a **training signal**: to predict the dermoscopic feature, the encoder
+  has to keep fine photo detail that a plain class label would let it throw away.
+- **Final decision.** The classification head, then logit adjustment.
+- **Size.** 89.6 M parameters. The hallucinator adds only 0.6 M on top of one ConvNeXt-Base.
 
-At initialisation the hallucinator returns the teacher's own "no dermoscopic image" constant and
-its output head is zeroed, so **the student starts out as exactly the teacher run without a
-dermoscopic image**. `check.py` verifies this numerically. Everything after that is improvement.
+## How it learns from the teacher
 
-## Setup
+Each student fold learns from the frozen teacher of the same fold. During training the teacher
+still sees all three inputs, but the student sees only the clinical photo and the metadata. The
+loss has four parts:
 
-Self-contained. Two things come from outside, both at the top of `config.yaml`:
+| Loss | What it does |
+|---|---|
+| Cross-entropy | predict the true diagnosis |
+| Logit distillation (KL, temperature 3) | match the teacher's class scores |
+| Feature matching (cosine) | match the teacher's fused feature `h` |
+| **Hallucination (cosine)** | match the teacher's real dermoscopic feature |
 
-- `teacher_work_dir` — the trained teacher's run folder (`fold0..4/best.pt`, `folds.csv`,
-  `meta_encoder.json`). Only read, never written to.
-- `data` — the MILK10k paths, as in the teacher's config.
+All four use the same class weights, 1/√count. Lesions without a dermoscopic image are skipped by
+the hallucination loss.
 
-The `model` block and `train.folds` / `seed` / `img_size` must stay identical to the teacher's.
+## Code structure
 
-## Commands
+```
+Halluc-Student/
+├── config.yaml          all paths and settings (the only file you need to edit)
+├── student_model.py     the student network + hallucinator + copying the weights from the teacher
+├── student_data.py      clinical-only dataset (never opens a dermoscopic image)
+├── student_engine.py    frozen teacher, the four losses, training loop, codebook fitting
+├── train.py             trains the 5 folds
+├── evaluate.py          validation table: the teacher (with / without dermoscopy) vs. the student runs
+├── predict.py           5-fold ensemble on the test set, writes the submission
+├── tune_decision.py     (optional) tunes one decision offset per class instead of tau
+├── data.py, engine.py, model.py   copies of the teacher's files (needed to load the teacher)
+└── requirements.txt
+```
+
+## How to train
+
+### 1. Train the teacher first
+
+The student is built from the teacher's weights, so you need a fully trained `Fusion-Teacher`
+(all 5 folds), or its downloaded checkpoints.
+
+### 2. Install
 
 ```bash
-python check.py      # ~5 min. MUST say "ALL CHECKS PASSED"
-python train.py      # all 5 folds (finished folds are skipped on a re-run)
-python evaluate.py
-python predict.py
+pip install -r requirements.txt
 ```
 
-Folds in parallel on separate GPUs:
+You need a GPU. One fold takes about 35–55 minutes on ours (15 epochs), so all 5 folds take about
+3–4 hours.
+
+### 3. Set the paths in `config.yaml`
+
+Point it to the teacher and to the data. The data paths are the same as in the teacher's config:
+
+```yaml
+teacher_work_dir: /path/to/Fusion-Teacher/runs/teacher_convnext   # the trained teacher
+
+data:
+  train_meta_csv: /path/to/MILK10k/MILK10k_Training_Metadata.csv
+  train_gt_csv:   /path/to/MILK10k/MILK10k_Training_GroundTruth.csv
+  train_img_dir:  /path/to/MILK10k/MILK10k_Training_Input
+  test_meta_csv:  /path/to/MILK10k/MILK10k_Test_Metadata.csv
+  test_img_dir:   /path/to/MILK10k/MILK10k_Test_Input
+
+work_dir: runs/halluc                 # where all outputs are saved
+```
+
+Do not change the `model` block or `folds` / `seed` / `img_size`. They must match the teacher.
+
+### 4. Run
+
+```bash
+python train.py       # trains folds 0-4 (folds that are already finished are skipped)
+python evaluate.py    # validation table next to the teacher
+python predict.py     # test set -> runs/halluc/submission_tau0.25.csv
+```
+
+If you have several GPUs, you can train the folds in parallel:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python train.py --fold 0 &
 CUDA_VISIBLE_DEVICES=1 python train.py --fold 1 &
+# ... one line per fold, then run evaluate.py and predict.py
 ```
 
-## The ablations
+### The no-distillation control
 
-Each variant goes to its own folder, so nothing is overwritten:
+To show what the teacher adds, train the same student with cross-entropy only. It goes to its own
+folder, so nothing is overwritten:
 
 ```bash
-python train.py --halluc_weight 0 --work_dir runs/no_halluc              # does the new loss help?
-python train.py --kd_weight 0 --feat_weight 0 --halluc_weight 0 \
-                --work_dir runs/no_kd                                    # the no-distillation control
-python train.py --halluc_kind mlp  --work_dir runs/mlp                   # no codebook
-python train.py --halluc_kind none --work_dir runs/plain                 # no hallucinator at all
-python evaluate.py --runs runs/halluc,runs/no_halluc,runs/no_kd,runs/mlp,runs/plain
-python predict.py  --runs runs/halluc,runs/no_kd
+python train.py --kd_weight 0 --feat_weight 0 --halluc_weight 0 --work_dir runs/no_kd
+python evaluate.py --runs runs/halluc,runs/no_kd     # both runs in one table
 ```
 
-`evaluate.py` reads each run's `settings.json` and labels the rows itself, and prints the teacher
-with and without dermoscopy as the two reference points plus the share of the gap each run closes.
+### Training settings
 
-Budget about 2.5 hours per variant. The useful set is the first three.
+| Setting | Value |
+|---|---|
+| Starting weights | the teacher of the same fold |
+| Split | the teacher's 5 folds (`folds.csv` is reused) |
+| Epochs / batch size | 15 / 16 |
+| Optimizer | AdamW, learning rate 5e-5 (encoder) and 5e-4 (rest, incl. the hallucinator), weight decay 0.05 |
+| Schedule | cosine, with 1 warm-up epoch |
+| Hallucinator | codebook of 32 patterns, MLP with 512 hidden units, dropout 0.1 |
+| Other | EMA weights (0.998), bf16, gradient clipping 1.0, flip test-time augmentation |
+| Checkpoint kept | the last epoch (no validation labels are used to pick it) |
+| Post-processing | logits − 0.25 · log(class frequency), then the top class |
 
-## The four losses
+All of these are in `config.yaml`. Any loss weight can also be set from the command line, e.g.
+`--halluc_weight 0`.
 
-| Loss | Weight | What it does |
-|---|---|---|
-| cross-entropy | `ce_weight` | the true label, class-weighted 1/√count, label smoothing 0.05 |
-| logit KD | `kd_weight` | match the teacher's class scores, temperature 3 |
-| feature | `feat_weight` | cosine between the student's fused `h` and the teacher's |
-| **hallucination** | `halluc_weight` | cosine between the predicted and the real dermoscopic token |
+## Outputs
 
-All four use the same per-class weights. Lesions with no dermoscopic image are skipped by the
-hallucination loss.
+Everything is written to `work_dir` (`runs/halluc/`):
 
-## The hallucinator
+```
+runs/halluc/
+├── fold0/ ... fold4/
+│   ├── best.pt                  student weights of this fold (the codebook is stored inside)
+│   ├── log.csv                  losses (ce / kd / feat / halluc) and validation macro-F1 per epoch
+│   └── oof.npz                  this fold's validation predictions, fused feature h and predicted token x
+├── folds.csv                    copy of the teacher's split
+├── meta_encoder.json            copy of the teacher's metadata encoding
+├── settings.json                the exact loss weights and hallucinator settings of this run
+│
+├── oof_metrics.json             validation results: teacher (with / without dermoscopy), halluc, no_kd
+├── oof_per_class.csv            F1 per class for each of those
+│
+├── submission_tau0.25.csv       FINAL test predictions
+└── test_outputs.npz             test logits
+```
 
-- `kind: codebook` — K-means over the teacher's dermoscopic tokens for that fold's training
-  lesions gives `n_codes` prototypes (classical vector quantisation). They are stored as a buffer
-  and never trained; a small MLP predicts the coefficients over them. This is the classical
-  component, and it keeps the predictor's rank low, which matters with ~4200 lesions.
-- `kind: mlp` — the same MLP predicting all 512 dimensions, no dictionary. The ablation for
-  whether the codebook earns its place.
-- `kind: none` — no prediction; the teacher's constant vector, i.e. the plain student.
+`runs/no_kd/` has the same layout for the no-distillation control. If you run `tune_decision.py`,
+`decision_offsets.json` also appears.
 
-The codebook is fitted once per fold before training, from that fold's **training** lesions only.
-It costs one forward pass over them (a couple of minutes), and `train.py` reports it.
+The submission has one row per test lesion and one column per class. The predicted class has a
+value of 0.5 or more, and all others are below 0.5.
 
-## Leakage rules the code enforces
-
-- Student k and teacher k are trained on the same lesions (folds ≠ k); neither has seen fold k.
-- The codebook, the class weights and the class frequencies for the logit adjustment all come from
-  that fold's training lesions only.
-- The dermoscopic image is passed to the frozen teacher during training and to nothing else.
-  Validation, the test set and `predict.py` use `ClinDataset`, which never opens a dermoscopic
-  file, and `check.py` fails if the student's inputs are anything but clinical image + metadata.
-- The student contains no dermoscopic encoder and no dermoscopic projection; `check.py` asserts it.
-- `checkpoint: last` keeps the weights from the final epoch, so no validation label influences the
-  student. `checkpoint: val_loss` is available if the logs show the last epochs are clearly worse.
-- Nothing is written into the teacher's run folder.
-
-One thing the code cannot remove: each teacher checkpoint was picked at its best validation
-macro-F1, so these out-of-fold numbers inherit a little of that optimism. The hidden benchmark is
-the clean comparison.
-
-## Outputs (in `work_dir`)
-
-`fold*/best.pt`, `fold*/log.csv`, `fold*/oof.npz` (logits, `h`, and the predicted token `x`),
-`folds.csv`, `meta_encoder.json`, `settings.json`, `oof_metrics.json`, `oof_per_class.csv`,
-`submission_tau0.25.csv`, `test_outputs.npz`.
+The `.pt` and `.npz` files are not in this git repo because they are too large. Download them from
+the checkpoint link in the main README.
 
 ## Notes
 
-- Memory: one trainable ConvNeXt plus the frozen teacher. `check.py` prints the peak; if it runs
-  out, set `batch_size: 8`.
-- The saved `x` in `oof.npz` lets you measure how close the predicted token got to the teacher's
-  without rerunning anything.
-- Expect modest numbers. The teacher gains 0.094 macro-F1 from dermoscopy and most of that is
-  information a phone photo does not contain; the encoder fine-tuning, not the hallucinated token,
-  is what recovers any of it.
+- **No dermoscopy leaks into the student.** The dermoscopic image is passed only to the frozen
+  teacher during training. Validation and the test predictions use a dataset that never opens a
+  dermoscopic file. The codebook, the class weights and the class frequencies all come from that
+  fold's training lesions only.
+- **The teacher folder is only read.** Nothing is written into it.
+- **Running out of GPU memory?** Set `batch_size: 8` in `config.yaml`.
+- **Slightly optimistic validation numbers.** The teacher's checkpoints were picked by validation
+  macro-F1, so the student's out-of-fold numbers are a little high as well. The hidden test set is
+  the clean comparison.

@@ -1,9 +1,8 @@
 # MILK10k: Multimodal-to-Clinical Knowledge Distillation
 
-Doctors diagnose skin lesions better with **dermoscopy**, a zoomed-in image taken with a special
-device. But that device is often not available, and most lesions are only photographed with a
-normal camera. Our question: **can a model that sees only a normal photo learn what a model with
-dermoscopy knows?**
+Skin lesions are easier to diagnose with a **dermoscopic image** (a close-up taken with a special
+device). Most of the time, only a **normal photo** is available. So we ask: **can a model that sees
+only the normal photo learn from a model that also sees the dermoscopic image?**
 
 We train a **teacher** that sees a normal (clinical) photo, a dermoscopic image and patient
 metadata. We then **distill** it into **students** that need only the clinical photo and the
